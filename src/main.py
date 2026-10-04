@@ -4,6 +4,7 @@ import argparse
 import os
 import socket
 import shlex
+import copy
 
 
 class VFSNode:
@@ -194,6 +195,10 @@ class ShellEmulator:
             return self.command_echo(arguments)
         elif command == "vfs-init":
             return self.command_vfs_init(arguments)
+        elif command == "mv":
+            return self.command_mv(arguments)
+        elif command == "cp":
+            return self.command_cp(arguments)
         elif command == "exit":
             return self.command_exit(arguments)
         else:
@@ -245,6 +250,16 @@ class ShellEmulator:
                 )
 
         return results
+
+    def get_parent_node(self, path_parts):
+        """Возвращает родительскую директорию для указанного пути."""
+
+        if not path_parts:
+            return None
+
+        parent_path = path_parts[:-1]
+
+        return self.vfs.get_node(parent_path)
 
     def command_ls(self, arguments):
         """Вывод содержимого директории VFS."""
@@ -365,6 +380,91 @@ class ShellEmulator:
         for result in results:
             self.print_output(result)
 
+        return True
+
+    def command_mv(self, arguments):
+        """Перемещает файл или директорию внутри VFS."""
+
+        if len(arguments) != 2:
+            self.print_output("Ошибка: mv требует два аргумента")
+            return False
+        source_path = self.normalize_path(arguments[0])
+        destination_path = self.normalize_path(arguments[1])
+        source_node = self.vfs.get_node(source_path)
+        if source_node is None:
+            self.print_output("Ошибка: исходный объект не найден")
+            return False
+        if not source_path:
+            self.print_output("Ошибка: нельзя переместить корень VFS")
+            return False
+        source_parent = self.get_parent_node(source_path)
+        if source_parent is None:
+            self.print_output("Ошибка: родительская директория не найдена")
+            return False
+        source_name = source_path[-1]
+        destination_node = self.vfs.get_node(destination_path)
+        if destination_node is not None:
+            if destination_node.is_directory:
+                if source_name in destination_node.children:
+                    self.print_output("Ошибка: объект с таким именем уже существует")
+                    return False
+                destination_node.children[source_name] = source_node
+            else:
+                self.print_output("Ошибка: назначение не является директорией")
+                return False
+        else:
+            destination_parent = self.get_parent_node(destination_path)
+            if destination_parent is None:
+                self.print_output("Ошибка: родительская директория назначения не найдена")
+                return False
+            new_name = destination_path[-1]
+            if new_name in destination_parent.children:
+                self.print_output("Ошибка: объект с таким именем уже существует")
+                return False
+            source_node.name = new_name
+            destination_parent.children[new_name] = source_node
+        del source_parent.children[source_name]
+        return True
+
+    def command_cp(self, arguments):
+        """Копирует файл или директорию внутри VFS."""
+
+        if len(arguments) != 2:
+            self.print_output("Ошибка: cp требует два аргумента")
+            return False
+        source_path = self.normalize_path(arguments[0])
+        destination_path = self.normalize_path(arguments[1])
+        source_node = self.vfs.get_node(source_path)
+        if source_node is None:
+            self.print_output("Ошибка: исходный объект не найден")
+            return False
+        if not source_path:
+            self.print_output("Ошибка: нельзя скопировать корень VFS")
+            return False
+        destination_node = self.vfs.get_node(destination_path)
+        if destination_node is not None:
+            if destination_node.is_directory:
+                new_name = source_node.name
+                if new_name in destination_node.children:
+                    self.print_output("Ошибка: объект с таким именем уже существует")
+                    return False
+                copied_node = copy.deepcopy(source_node)
+                destination_node.children[new_name] = copied_node
+            else:
+                self.print_output("Ошибка: назначение не является директорией")
+                return False
+        else:
+            destination_parent = self.get_parent_node(destination_path)
+            if destination_parent is None:
+                self.print_output("Ошибка: родительская директория назначения не найдена")
+                return False
+            new_name = destination_path[-1]
+            if new_name in destination_parent.children:
+                self.print_output("Ошибка: объект с таким именем уже существует")
+                return False
+            copied_node = copy.deepcopy(source_node)
+            copied_node.name = new_name
+            destination_parent.children[new_name] = copied_node
         return True
 
     def command_exit(self, arguments):

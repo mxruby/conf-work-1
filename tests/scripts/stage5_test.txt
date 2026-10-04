@@ -1,0 +1,15 @@
+ls
+cp file1.txt copy.txt
+ls
+cp file2.txt folder/
+ls folder
+mv copy.txt renamed.txt
+ls
+mv renamed.txt folder/
+ls
+ls folder
+cp folder folder_copy
+ls
+mv folder_copy moved_folder
+ls
+cp nonexistent.txt copy.txt
