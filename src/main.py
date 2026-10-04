@@ -186,6 +186,12 @@ class ShellEmulator:
             return self.command_ls(arguments)
         elif command == "cd":
             return self.command_cd(arguments)
+        elif command == "whoami":
+            return self.command_whoami(arguments)
+        elif command == "find":
+            return self.command_find(arguments)
+        elif command == "echo":
+            return self.command_echo(arguments)
         elif command == "vfs-init":
             return self.command_vfs_init(arguments)
         elif command == "exit":
@@ -218,26 +224,146 @@ class ShellEmulator:
 
         return result
 
-    def command_ls(self, arguments):
-        """Заглушка команды ls."""
+    def find_recursive(self, node, current_path, target_name=None):
+        """Рекурсивный поиск в VFS."""
 
-        self.print_output("Команда: ls")
+        results = []
+
+        if target_name is None or node.name == target_name:
+            results.append(
+                "/" + "/".join(current_path)
+            )
+
+        if node.is_directory:
+            for name, child in node.children.items():
+                results.extend(
+                    self.find_recursive(
+                        child,
+                        current_path + [name],
+                        target_name
+                    )
+                )
+
+        return results
+
+    def command_ls(self, arguments):
+        """Вывод содержимого директории VFS."""
+
+        if len(arguments) > 1:
+            self.print_output("Ошибка: ls принимает не более одного аргумента")
+            return False
 
         if arguments:
-            self.print_output(f"Аргументы: {arguments}")
+            path_parts = self.normalize_path(arguments[0])
         else:
-            self.print_output("Аргументы: отсутствуют")
+            path_parts = self.current_path
+
+        node = self.vfs.get_node(path_parts)
+
+        if node is None:
+            self.print_output("Ошибка: директория не найдена")
+            return False
+
+        if not node.is_directory:
+            self.print_output("Ошибка: указанный путь не является директорией")
+            return False
+
+        if not node.children:
+            self.print_output("(пусто)")
+            return True
+
+        items = []
+
+        for name, child in sorted(node.children.items()):
+            if child.is_directory:
+                items.append(name + "/")
+            else:
+                items.append(name)
+
+        self.print_output(" ".join(items))
 
         return True
 
     def command_cd(self, arguments):
-        """Заглушка команды cd."""
+        """Изменение текущей директории VFS."""
 
-        self.print_output("Команда: cd")
+        if len(arguments) > 1:
+            self.print_output("Ошибка: cd принимает не более одного аргумента")
+            return False
+
+        if not arguments:
+            self.current_path = []
+            return True
+
+        path_parts = self.normalize_path(arguments[0])
+        node = self.vfs.get_node(path_parts)
+
+        if node is None:
+            self.print_output("Ошибка: директория не найдена")
+            return False
+
+        if not node.is_directory:
+            self.print_output("Ошибка: указанный путь не является директорией")
+            return False
+
+        self.current_path = path_parts
+        return True
+
+    def command_whoami(self, arguments):
+        """Вывод имени текущего пользователя."""
+
         if arguments:
-            self.print_output(f"Аргументы: {arguments}")
+            self.print_output("Ошибка: whoami не принимает аргументы")
+            return False
+
+        username = os.getlogin()
+
+        self.print_output(username)
+
+        return True
+
+    def command_echo(self, arguments):
+        """Вывод переданных аргументов."""
+
+        self.print_output(" ".join(arguments))
+
+        return True
+
+    def command_find(self, arguments):
+        """Поиск файлов и директорий в VFS."""
+
+        if len(arguments) > 2:
+            self.print_output("Ошибка: find принимает не более двух аргументов")
+            return False
+
+        if arguments:
+            start_path = self.normalize_path(arguments[0])
         else:
-            self.print_output("Аргументы: отсутствуют")
+            start_path = self.current_path
+
+        start_node = self.vfs.get_node(start_path)
+
+        if start_node is None:
+            self.print_output("Ошибка: указанный путь не найден")
+            return False
+
+        if len(arguments) == 2:
+            target_name = arguments[1]
+        else:
+            target_name = None
+
+        results = self.find_recursive(
+            start_node,
+            start_path,
+            target_name
+        )
+
+        if not results:
+            self.print_output("Ничего не найдено.")
+            return True
+
+        for result in results:
+            self.print_output(result)
 
         return True
 
