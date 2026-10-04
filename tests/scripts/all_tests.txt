@@ -1,0 +1,4 @@
+ls
+cd folder
+vfs-init
+ls

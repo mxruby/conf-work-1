@@ -1,0 +1,3 @@
+ls
+dc folder
+exit 1
