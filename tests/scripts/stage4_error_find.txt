@@ -1,0 +1,2 @@
+find fold file5.txt
+ls

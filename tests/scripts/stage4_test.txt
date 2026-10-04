@@ -1,0 +1,16 @@
+whoami
+echo Hello
+echo Hello World
+echo "Hello World"
+ls
+ls folder
+cd folder
+ls
+cd ..
+ls
+find
+find folder
+find / file1.txt
+find / nonexistent.txt
+cd /
+ls
