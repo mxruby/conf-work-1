@@ -110,6 +110,8 @@ class VirtualFileSystem:
 class ShellEmulator:
     """Класс эмулятора командной строки."""
 
+    MAX_ARGS = 2
+
     def __init__(self, root, vfs_path=None, script_path=None):
         """Инициализация окна"""
 
@@ -124,14 +126,17 @@ class ShellEmulator:
         hostname = socket.gethostname()
         self.root.title(f"Эмулятор - [{username}@{hostname}]")
         self.root.geometry("800x500")
-        self.output = tk.Text(root, bg="black", fg="white", insertbackground="white", font=("Consolas", 11))
+        self.output = tk.Text(root, bg="black", fg="white",
+                              insertbackground="white", font=("Consolas", 11))
         self.output.pack(fill=tk.BOTH, expand=True)
         self.output.config(state=tk.DISABLED)
         self.input_frame = tk.Frame(root)
         self.input_frame.pack(fill=tk.X)
-        self.prompt = tk.Label(self.input_frame, text="$ ", bg="black", fg="white", font=("Consolas", 11))
+        self.prompt = tk.Label(self.input_frame, text="$ ", bg="black",
+                               fg="white", font=("Consolas", 11))
         self.prompt.pack(side=tk.LEFT)
-        self.entry = tk.Entry(self.input_frame, bg="black", fg="white", insertbackground="white", font=("Consolas", 11))
+        self.entry = tk.Entry(self.input_frame, bg="black", fg="white",
+                              insertbackground="white", font=("Consolas", 11))
         self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.entry.bind("<Return>", self.execute_command)
         self.entry.focus()
@@ -183,27 +188,24 @@ class ShellEmulator:
         command = parts[0]
         arguments = parts[1:]
 
-        if command == "ls":
-            return self.command_ls(arguments)
-        elif command == "cd":
-            return self.command_cd(arguments)
-        elif command == "whoami":
-            return self.command_whoami(arguments)
-        elif command == "find":
-            return self.command_find(arguments)
-        elif command == "echo":
-            return self.command_echo(arguments)
-        elif command == "vfs-init":
-            return self.command_vfs_init(arguments)
-        elif command == "mv":
-            return self.command_mv(arguments)
-        elif command == "cp":
-            return self.command_cp(arguments)
-        elif command == "exit":
-            return self.command_exit(arguments)
-        else:
+        commands = {
+            "ls": self.command_ls,
+            "cd": self.command_cd,
+            "whoami": self.command_whoami,
+            "find": self.command_find,
+            "echo": self.command_echo,
+            "vfs-init": self.command_vfs_init,
+            "mv": self.command_mv,
+            "cp": self.command_cp,
+            "exit": self.command_exit,
+        }
+
+        handler = commands.get(command)
+
+        if handler is None:
             self.print_output(f"Ошибка: неизвестная команда '{command}'")
             return False
+        return handler(arguments)
 
     def normalize_path(self, path):
         """Работа с путями VFS"""
@@ -347,7 +349,7 @@ class ShellEmulator:
     def command_find(self, arguments):
         """Поиск файлов и директорий в VFS."""
 
-        if len(arguments) > 2:
+        if len(arguments) > self.MAX_ARGS:
             self.print_output("Ошибка: find принимает не более двух аргументов")
             return False
 
@@ -362,7 +364,7 @@ class ShellEmulator:
             self.print_output("Ошибка: указанный путь не найден")
             return False
 
-        if len(arguments) == 2:
+        if len(arguments) == self.MAX_ARGS:
             target_name = arguments[1]
         else:
             target_name = None
@@ -382,10 +384,40 @@ class ShellEmulator:
 
         return True
 
+    def execute_mv(self, destination_node, source_name, source_node,
+                   destination_path, source_parent):
+        """Логика команды VFS."""
+
+        if destination_node is not None:
+            if destination_node.is_directory:
+                if source_name in destination_node.children:
+                    self.print_output("Ошибка: объект с таким "
+                                      "именем уже существует")
+                    return False
+                destination_node.children[source_name] = source_node
+            else:
+                self.print_output("Ошибка: назначение не является директорией")
+                return False
+        else:
+            destination_parent = self.get_parent_node(destination_path)
+            if destination_parent is None:
+                self.print_output("Ошибка: родительская директория "
+                                  "назначения не найдена")
+                return False
+            new_name = destination_path[-1]
+            if new_name in destination_parent.children:
+                self.print_output("Ошибка: объект с таким именем "
+                                  "уже существует")
+                return False
+            source_node.name = new_name
+            destination_parent.children[new_name] = source_node
+        del source_parent.children[source_name]
+        return True
+
     def command_mv(self, arguments):
         """Перемещает файл или директорию внутри VFS."""
 
-        if len(arguments) != 2:
+        if len(arguments) != self.MAX_ARGS:
             self.print_output("Ошибка: mv требует два аргумента")
             return False
         source_path = self.normalize_path(arguments[0])
@@ -403,33 +435,42 @@ class ShellEmulator:
             return False
         source_name = source_path[-1]
         destination_node = self.vfs.get_node(destination_path)
+        return self.execute_mv(destination_node, source_name, source_node,
+                               destination_path, source_parent)
+
+    def execute_cp(self, destination_node, source_node, destination_path):
         if destination_node is not None:
             if destination_node.is_directory:
-                if source_name in destination_node.children:
-                    self.print_output("Ошибка: объект с таким именем уже существует")
+                new_name = source_node.name
+                if new_name in destination_node.children:
+                    self.print_output("Ошибка: объект с таким именем "
+                                      "уже существует")
                     return False
-                destination_node.children[source_name] = source_node
+                copied_node = copy.deepcopy(source_node)
+                destination_node.children[new_name] = copied_node
             else:
                 self.print_output("Ошибка: назначение не является директорией")
                 return False
         else:
             destination_parent = self.get_parent_node(destination_path)
             if destination_parent is None:
-                self.print_output("Ошибка: родительская директория назначения не найдена")
+                self.print_output("Ошибка: родительская директория "
+                                  "назначения не найдена")
                 return False
             new_name = destination_path[-1]
             if new_name in destination_parent.children:
-                self.print_output("Ошибка: объект с таким именем уже существует")
+                self.print_output("Ошибка: объект с таким именем "
+                                  "уже существует")
                 return False
-            source_node.name = new_name
-            destination_parent.children[new_name] = source_node
-        del source_parent.children[source_name]
+            copied_node = copy.deepcopy(source_node)
+            copied_node.name = new_name
+            destination_parent.children[new_name] = copied_node
         return True
 
     def command_cp(self, arguments):
         """Копирует файл или директорию внутри VFS."""
 
-        if len(arguments) != 2:
+        if len(arguments) != self.MAX_ARGS:
             self.print_output("Ошибка: cp требует два аргумента")
             return False
         source_path = self.normalize_path(arguments[0])
@@ -442,30 +483,7 @@ class ShellEmulator:
             self.print_output("Ошибка: нельзя скопировать корень VFS")
             return False
         destination_node = self.vfs.get_node(destination_path)
-        if destination_node is not None:
-            if destination_node.is_directory:
-                new_name = source_node.name
-                if new_name in destination_node.children:
-                    self.print_output("Ошибка: объект с таким именем уже существует")
-                    return False
-                copied_node = copy.deepcopy(source_node)
-                destination_node.children[new_name] = copied_node
-            else:
-                self.print_output("Ошибка: назначение не является директорией")
-                return False
-        else:
-            destination_parent = self.get_parent_node(destination_path)
-            if destination_parent is None:
-                self.print_output("Ошибка: родительская директория назначения не найдена")
-                return False
-            new_name = destination_path[-1]
-            if new_name in destination_parent.children:
-                self.print_output("Ошибка: объект с таким именем уже существует")
-                return False
-            copied_node = copy.deepcopy(source_node)
-            copied_node.name = new_name
-            destination_parent.children[new_name] = copied_node
-        return True
+        return self.execute_cp(destination_node, source_node, destination_path)
 
     def command_exit(self, arguments):
         """Команда выхода."""
@@ -521,7 +539,8 @@ class ShellEmulator:
                     success = self.process_command(command_line)
                     if not success:
                         self.print_output("")
-                        self.print_output(f"Стартовый скрипт остановлен на строке {line_number}.")
+                        self.print_output(f"Стартовый скрипт остановлен "
+                                          f"на строке {line_number}.")
                         return
 
         except FileNotFoundError:
