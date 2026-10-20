@@ -110,7 +110,7 @@ class VirtualFileSystem:
 class ShellEmulator:
     """Класс эмулятора командной строки."""
 
-    MAX_ARGS = 2
+    max_args = 2
 
     def __init__(self, root, vfs_path=None, script_path=None):
         """Инициализация окна"""
@@ -349,7 +349,7 @@ class ShellEmulator:
     def command_find(self, arguments):
         """Поиск файлов и директорий в VFS."""
 
-        if len(arguments) > self.MAX_ARGS:
+        if len(arguments) > self.max_args:
             self.print_output("Ошибка: find принимает не более двух аргументов")
             return False
 
@@ -364,7 +364,7 @@ class ShellEmulator:
             self.print_output("Ошибка: указанный путь не найден")
             return False
 
-        if len(arguments) == self.MAX_ARGS:
+        if len(arguments) == self.max_args:
             target_name = arguments[1]
         else:
             target_name = None
@@ -417,7 +417,7 @@ class ShellEmulator:
     def command_mv(self, arguments):
         """Перемещает файл или директорию внутри VFS."""
 
-        if len(arguments) != self.MAX_ARGS:
+        if len(arguments) != self.max_args:
             self.print_output("Ошибка: mv требует два аргумента")
             return False
         source_path = self.normalize_path(arguments[0])
@@ -470,7 +470,7 @@ class ShellEmulator:
     def command_cp(self, arguments):
         """Копирует файл или директорию внутри VFS."""
 
-        if len(arguments) != self.MAX_ARGS:
+        if len(arguments) != self.max_args:
             self.print_output("Ошибка: cp требует два аргумента")
             return False
         source_path = self.normalize_path(arguments[0])
